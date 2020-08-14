@@ -1,7 +1,7 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
-    <ui:VisualElement style="height: 204px;">
+    <ui:VisualElement style="height: 122.4px; width: 346.8px;">
         <Style src="screen.uss" />
         <ui:Button text="Earth" name="earthButton" style="height: 48px; width: 107px;" />
-        <ui:Button text="Water" name="waterButton" style="height: 60px; width: 108.8px;" />
+        <ui:Button text="Water" name="waterButton" style="height: 60px; width: 106.8px;" />
     </ui:VisualElement>
 </ui:UXML>
