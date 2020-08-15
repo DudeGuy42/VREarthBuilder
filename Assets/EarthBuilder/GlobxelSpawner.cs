@@ -24,9 +24,11 @@ public class GlobxelSpawner : MonoBehaviour
     //[SerializeField]
     //UnityEngine.Material _defaultMaterial;
 
-    float _spawnPeriod = 1f / 1000f;
-    float _lastSpawnTime = 0f;
+    float _earthSpawnPeriod = 1f / 50f;
+    float _lastEarthSpawnTime = 0f;
 
+    float _waterSpawnPeriod = 1f / 50;
+    float _lastWaterSpawnTime = 0f;
     // Start is called before the first frame update
     void Start()
     {
@@ -113,18 +115,18 @@ public class GlobxelSpawner : MonoBehaviour
     {
         if(Input.GetMouseButton(0))
         {
-            if(Time.time - _lastSpawnTime >= _spawnPeriod)
+            if(Time.time - _lastEarthSpawnTime >= _earthSpawnPeriod)
             {
-                SpawnGlobxelConvert(_earthPrefab, Camera.main.transform.position + 10f*Camera.main.transform.forward);
-                _lastSpawnTime = Time.time;
+                SpawnGlobxelConvert(_earthPrefab, Camera.main.transform.position + 5f*Camera.main.transform.forward);
+                _lastEarthSpawnTime = Time.time;
             }
         }
         else if(Input.GetKey(KeyCode.Space))
         {
-            if (Time.time - _lastSpawnTime >= _spawnPeriod)
+            if (Time.time - _lastWaterSpawnTime >= _waterSpawnPeriod)
             {
-                SpawnGlobxelConvert(_waterPrefab, Camera.main.transform.position + 10f * Camera.main.transform.forward);
-                _lastSpawnTime = Time.time;
+                SpawnGlobxelConvert(_waterPrefab, Camera.main.transform.position + 5f * Camera.main.transform.forward);
+                _lastWaterSpawnTime = Time.time;
             }
         }
     }

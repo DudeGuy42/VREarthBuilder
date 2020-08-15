@@ -58,7 +58,7 @@ public class GlobPointSystem : SystemBase
         {
             if ((tag.Value & (byte)GlobKind.ION) != 0)
             {
-                globPoints[entityInQueryIndex] = new GlobPoint { Mass = 1f/mass.InverseMass, Globiness = 0.01f, Position = translation.Value };
+                globPoints[entityInQueryIndex] = new GlobPoint { Mass = 1f/mass.InverseMass, Globiness = 1f, Position = translation.Value };
             }
             else
             {
@@ -75,7 +75,8 @@ public class GlobPointSystem : SystemBase
                 in PhysicsMass mass,
                 in Translation translation,
                 in Rotation rotation,
-                in PhysicsCustomTags tag) =>
+                in PhysicsCustomTags tag,
+                in PhysicsCollider collider) =>
         {
             float3 resultant = float3.zero;
             float3 diff = float3.zero;
@@ -83,24 +84,25 @@ public class GlobPointSystem : SystemBase
             for (int i = 0; i < entitiesInQuery; i++)
             {
                 diff = globPoints[i].Position - translation.Value;
+                var distance = math.lengthsq(diff);
+                if (distance <= 0.01f) continue;
 
-                if (math.lengthsq(diff) < 1f)
+                if (distance < 0.5f)
                 {
                     continue;
                 }
-                
                 // Newton's law of gravity
                 resultant += GRAVITATIONAL_CONSTANT * (globPoints[i].Mass / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 1.5f)) * math.normalize(diff);
 
                 if ((tag.Value & (byte)GlobKind.ION) != 0)
                 {
-                    resultant += GLOBINESS_CONSTANT * (globPoints[i].Globiness / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 1.5f)) * math.normalize(diff);
+                    //resultant += GLOBINESS_CONSTANT * (globPoints[i].Globiness / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 1.5f)) * math.normalize(diff);
                 }                
 
             }
 
             // newtons second
-            velocity.ApplyImpulse(mass, translation, rotation, resultant, translation.Value);
+            velocity.ApplyImpulse(mass, translation, rotation, resultant * mass.InverseMass, translation.Value);
         })
         .ScheduleParallel();
 
