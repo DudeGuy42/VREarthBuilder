@@ -236,9 +236,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c9382fa702b7bc347bfc4494e7727495, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _prefab: {fileID: 2862699469866394094, guid: 7f38c214dfa3cc84aafe069c98cb37b7, type: 3}
-  _defaultMesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
-  _defaultMaterial: {fileID: 2100000, guid: 406f5eaec08f1cb40b0bc3bf1b52139b, type: 2}
+  _earthPrefab: {fileID: 2862699469866394094, guid: 7f38c214dfa3cc84aafe069c98cb37b7, type: 3}
+  _waterPrefab: {fileID: 2331250715304769639, guid: 62a5826b7b462a549b50df66721ba2fe, type: 3}
 --- !u!1 &1687258581
 GameObject:
   m_ObjectHideFlags: 0
