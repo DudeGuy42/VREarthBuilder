@@ -84,7 +84,7 @@ public class GlobPointSystem : SystemBase
             for (int i = 0; i < entitiesInQuery; i++)
             {
                 diff = globPoints[i].Position - translation.Value;
-                var distance = math.length(diff) - 0.50f;
+                var distance = math.length(diff) - 0.50f; // TODO: How do I get Collider type? I want spherical collider.radius
                 if (distance <= 0.5f) continue;
 
 
@@ -94,10 +94,11 @@ public class GlobPointSystem : SystemBase
                 if ((tag.Value & (byte)GlobKind.ION) != 0)
                 {
                     // Experimentally found "water" equation. Notice the steeper fall off function with distance.
-                    var water = GLOBINESS_CONSTANT * (globPoints[i].Globiness / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 5f)) * math.normalize(diff);
-                    if (math.length(water) > 0.1f)
+                    var globForce = GLOBINESS_CONSTANT * (globPoints[i].Globiness / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 5f)) * math.normalize(diff);
+                    
+                    if (math.length(globForce) > 1f)
                     {
-                        resultant += water;
+                        resultant += globForce;
                     }
 
                 }
