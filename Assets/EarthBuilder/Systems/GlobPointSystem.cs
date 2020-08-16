@@ -80,7 +80,7 @@ public class GlobPointSystem : SystemBase
         {
             float3 resultant = float3.zero;
             float3 diff = float3.zero;
-            
+
             for (int i = 0; i < entitiesInQuery; i++)
             {
                 diff = globPoints[i].Position - translation.Value;
@@ -89,21 +89,19 @@ public class GlobPointSystem : SystemBase
 
 
                 // Newton's law of gravity
-                resultant += GRAVITATIONAL_CONSTANT * (globPoints[i].Mass * (1f/mass.InverseMass) / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 1.5f)) * math.normalize(diff);
-                
-                //if (distance < 0.5f)
-                //{
-                //    //velocity.Linear = float3.zero;
-                //    continue;
-                //}
+                resultant += GRAVITATIONAL_CONSTANT * (globPoints[i].Mass * (1f / mass.InverseMass) / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 1.5f)) * math.normalize(diff);
 
                 if ((tag.Value & (byte)GlobKind.ION) != 0)
                 {
-                    resultant += GLOBINESS_CONSTANT * (globPoints[i].Globiness / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 5f)) * math.normalize(diff);
-                }                
+                    // Experimentally found "water" equation. Notice the steeper fall off function with distance.
+                    var water = GLOBINESS_CONSTANT * (globPoints[i].Globiness / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 5f)) * math.normalize(diff);
+                    if (math.length(water) > 0.1f)
+                    {
+                        resultant += water;
+                    }
 
+                }
             }
-
             // newtons second
             velocity.ApplyImpulse(mass, translation, rotation, resultant * dt, translation.Value);
         })
