@@ -24,10 +24,10 @@ public class GlobxelSpawner : MonoBehaviour
     //[SerializeField]
     //UnityEngine.Material _defaultMaterial;
 
-    float _earthSpawnPeriod = 1f / 50f;
+    float _earthSpawnPeriod = 1f / 20f;
     float _lastEarthSpawnTime = 0f;
 
-    float _waterSpawnPeriod = 1f / 50;
+    float _waterSpawnPeriod = 1f / 20f;
     float _lastWaterSpawnTime = 0f;
     // Start is called before the first frame update
     void Start()

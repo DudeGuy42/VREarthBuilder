@@ -15,6 +15,7 @@ using UnityEngine;
 // TODO: See Unity.Entities.UpdateAfterAttribute and UpdateBeforeAttribute
 public class GlobPointSystem : SystemBase
 {
+    public static NativeArray<GlobPoint> s_globPoints;
     
     [Flags]
     public enum GlobKind: byte
@@ -22,27 +23,26 @@ public class GlobPointSystem : SystemBase
         MASS_PARTICLE = 1,
         ION = 2
     }
-    public const float GRAVITATIONAL_CONSTANT = 0.1f;//0.0075f;
+    public const float GRAVITATIONAL_CONSTANT = 0.01f;//0.0075f;
     public const float GLOBINESS_CONSTANT = 1f;
 
-    struct GlobPoint
+    public struct GlobPoint
     {
         public float Globiness;
         public float Mass;
         public float3 Position;
     }
 
-    NativeArray<GlobPoint> _globPoints;
 
     protected override void OnCreate()
     {
-        _globPoints = new NativeArray<GlobPoint>(5000, Allocator.Persistent);
+        s_globPoints = new NativeArray<GlobPoint>(5000, Allocator.Persistent);
         base.OnCreate();
     }
 
     protected override void OnDestroy()
     {
-        _globPoints.Dispose();
+        s_globPoints.Dispose();
         base.OnDestroy();
     }
 
@@ -51,7 +51,7 @@ public class GlobPointSystem : SystemBase
     {
         int entitiesInQuery = query.CalculateEntityCount();
         float dt = Time.DeltaTime;
-        var globPoints = this._globPoints;
+        var globPoints = GlobPointSystem.s_globPoints;
 
         Entities
             .ForEach((int entityInQueryIndex, in Translation translation, in PhysicsMass mass, in PhysicsCustomTags tag) =>
@@ -84,25 +84,28 @@ public class GlobPointSystem : SystemBase
             for (int i = 0; i < entitiesInQuery; i++)
             {
                 diff = globPoints[i].Position - translation.Value;
-                var distance = math.lengthsq(diff);
-                if (distance <= 0.01f) continue;
+                var distance = math.length(diff) - 0.50f;
+                if (distance <= 0.5f) continue;
 
-                if (distance < 0.5f)
-                {
-                    continue;
-                }
+
                 // Newton's law of gravity
-                resultant += GRAVITATIONAL_CONSTANT * (globPoints[i].Mass / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 1.5f)) * math.normalize(diff);
+                resultant += GRAVITATIONAL_CONSTANT * (globPoints[i].Mass * (1f/mass.InverseMass) / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 1.5f)) * math.normalize(diff);
+                
+                //if (distance < 0.5f)
+                //{
+                //    //velocity.Linear = float3.zero;
+                //    continue;
+                //}
 
                 if ((tag.Value & (byte)GlobKind.ION) != 0)
                 {
-                    //resultant += GLOBINESS_CONSTANT * (globPoints[i].Globiness / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 1.5f)) * math.normalize(diff);
+                    resultant += GLOBINESS_CONSTANT * (globPoints[i].Globiness / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 5f)) * math.normalize(diff);
                 }                
 
             }
 
             // newtons second
-            velocity.ApplyImpulse(mass, translation, rotation, resultant * mass.InverseMass, translation.Value);
+            velocity.ApplyImpulse(mass, translation, rotation, resultant * dt, translation.Value);
         })
         .ScheduleParallel();
 
