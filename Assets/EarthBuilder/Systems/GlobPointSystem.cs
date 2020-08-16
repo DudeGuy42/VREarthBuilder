@@ -24,7 +24,7 @@ public class GlobPointSystem : SystemBase
         ION = 2
     }
     public const float GRAVITATIONAL_CONSTANT = 0.01f;//0.0075f;
-    public const float GLOBINESS_CONSTANT = 1f;
+    public const float GLOBINESS_CONSTANT = 5f;
 
     public struct GlobPoint
     {
@@ -96,7 +96,7 @@ public class GlobPointSystem : SystemBase
                     // Experimentally found "water" equation. Notice the steeper fall off function with distance.
                     var globForce = GLOBINESS_CONSTANT * (globPoints[i].Globiness / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 5f)) * math.normalize(diff);
                     
-                    if (math.length(globForce) > 1f)
+                    if (math.length(globForce) > 0.5f)
                     {
                         resultant += globForce;
                     }
