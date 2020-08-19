@@ -6,4 +6,7 @@
     <ui:Label text="Water - Space Bar">
         <Style src="screen.uss" />
     </ui:Label>
+    <ui:Label text="Count: {0}" name="counter">
+        <Style src="screen.uss" />
+    </ui:Label>
 </ui:UXML>

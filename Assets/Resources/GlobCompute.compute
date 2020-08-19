@@ -1,0 +1,52 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+#define THREADS 1
+#define NUM_GROUPS 32 // This needs to match the Dispatch(NUM_GROUPS, 1, 1) call in GlobPointSystem.
+
+struct GlobPoint
+{
+	float mass;
+	float waterCharge;
+	float3 position;
+    float3 resultantForce;
+};
+
+// StructuredBuffer<T> and RWStructuredBuffer<T> in HLSL.
+RWStructuredBuffer<GlobPoint> InputGlobPoints;
+int GlobCount;
+
+[numthreads(THREADS, 1, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID, int gid : SV_GroupID)
+{
+    const float GRAVITATIONAL_CONSTANT = 1;
+    const float WATER_FORCE_CONSTANT = 5;
+    
+    int work = floor(GlobCount / NUM_GROUPS) + 1;
+    
+    for (uint i = gid * work; i < (gid + 1)*work; i++)
+    {
+        GlobPoint currentGlob = InputGlobPoints[i];
+        float3 resultant = float3(0, 0, 0);
+
+        for (int j = 0; j < GlobCount; j++)
+        {
+            if (i == j)
+                continue;
+            
+            GlobPoint otherGlob = InputGlobPoints[j];
+            
+            float3 diff = otherGlob.position - currentGlob.position;
+            
+            if (length(diff) <= 1)
+                continue;
+            
+            float waterForceMagnitude = WATER_FORCE_CONSTANT * (otherGlob.waterCharge * currentGlob.waterCharge / pow(pow(diff.x, 2) + pow(diff.y, 2) + pow(diff.z, 2), 5));
+            float gravityMagnitude = GRAVITATIONAL_CONSTANT * (otherGlob.mass * currentGlob.mass / pow(pow(diff.x, 2) + pow(diff.y, 2) + pow(diff.z, 2), 1.5));
+
+            resultant += (gravityMagnitude + waterForceMagnitude) * normalize(diff);
+        }
+        
+        InputGlobPoints[i].resultantForce = resultant;
+    }
+        
+}

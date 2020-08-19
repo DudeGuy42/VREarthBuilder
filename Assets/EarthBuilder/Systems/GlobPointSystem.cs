@@ -10,103 +10,167 @@ using Unity.Physics.Extensions;
 using System.Numerics;
 using System;
 using UnityEngine;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Security.Permissions;
+using Unity.Entities.CodeGeneratedJobForEach;
+using System.Threading;
+using UnityEngine.Rendering;
+using System.Linq;
 
 // TODO: How do I order my systems?
 // TODO: See Unity.Entities.UpdateAfterAttribute and UpdateBeforeAttribute
 public class GlobPointSystem : SystemBase
 {
-    public static NativeArray<GlobPoint> s_globPoints;
-    
-    [Flags]
-    public enum GlobKind: byte
-    {
-        MASS_PARTICLE = 1,
-        ION = 2
-    }
-    public const float GRAVITATIONAL_CONSTANT = 0.01f;//0.0075f;
-    public const float GLOBINESS_CONSTANT = 5f;
+    const string FORCE_FIELD_KERNEL_NAME = "CSMain";
 
-    public struct GlobPoint
-    {
-        public float Globiness;
-        public float Mass;
-        public float3 Position;
-    }
+    double _lastApplyTime = 0f;
 
+    NativeArray<GlobPoint> _gpuGlobData;
+
+    ComputeBuffer _globDataComputeBuffer;
+
+    ComputeShader _forceFieldShader;
+
+    int _forceFieldKernel = -1;
+    uint _groupSizeX = 1;
+    uint _groupSizeY = 1;
+    uint _groupSizeZ = 1;
+
+    float _applyPeriod;
+
+    public struct GlobPoint : IComponentData
+    {
+        public const int STRIDE = 32;
+        public float Mass; // 4
+        public float WaterCharge; // 8
+        public float3 Position; // 12, 16, 20
+        public float3 Resultant; // 24, 28, 32
+    }
 
     protected override void OnCreate()
     {
-        s_globPoints = new NativeArray<GlobPoint>(5000, Allocator.Persistent);
+        _forceFieldShader = Resources.Load<ComputeShader>("GlobCompute");
+        
+        _forceFieldKernel = _forceFieldShader.FindKernel(FORCE_FIELD_KERNEL_NAME);
+        _forceFieldShader.GetKernelThreadGroupSizes(_forceFieldKernel, out _groupSizeX, out _groupSizeY, out _groupSizeZ);
+
+        _pollQuery = GetEntityQuery(typeof(GlobPoint));
+
         base.OnCreate();
     }
 
     protected override void OnDestroy()
     {
-        s_globPoints.Dispose();
+        _gpuGlobData.Dispose();
+        _globDataComputeBuffer.Dispose();
         base.OnDestroy();
     }
 
-    private EntityQuery query;
+    EntityQuery _pollQuery;
+
+    private EntityQuery PollEntitiesForGlobData(out NativeArray<Entity> outEntities, out NativeArray<GlobPoint> data, out uint count)
+    {
+        Stopwatch dataSync = Stopwatch.StartNew();
+        var query = GetEntityQuery(typeof(GlobPoint), typeof(Translation));
+        count = (uint)query.CalculateEntityCount();
+        var nativeGlobPoints = new NativeArray<GlobPoint>(query.CalculateEntityCount(), Allocator.TempJob);
+
+        var entities = _pollQuery.ToEntityArray(Allocator.TempJob);
+        var em = EntityManager;
+        
+        for(int i = 0; i < count; i++)
+        {
+            var translation = em.GetComponentData<Translation>(entities[i]);
+            var globData = em.GetComponentData<GlobPoint>(entities[i]);
+            var velocity = em.GetComponentData<PhysicsVelocity>(entities[i]);
+
+            var prediction = _applyPeriod * velocity.Linear; // test; this will probably not even do shit unless the delay is exactly 20 ms.
+
+            globData.Position = translation.Value + prediction;
+
+            em.SetComponentData(entities[i], globData);
+
+            nativeGlobPoints[i] = em.GetComponentData<GlobPoint>(entities[i]);
+        }
+
+        outEntities = entities;
+        data = nativeGlobPoints;
+        UnityEngine.Debug.Log($"Query Data: {dataSync.ElapsedMilliseconds} ms");
+
+        return _pollQuery;
+    }
+
+    private EntityQuery _impulseQuery;
+
+    private void ApplyGpuData(NativeArray<Entity> entities, NativeArray<GlobPoint> points, uint count)
+    {
+        Stopwatch applyPhysics = Stopwatch.StartNew();
+
+        var dt = Time.ElapsedTime - _lastApplyTime;
+        for(int i = 0; i < count; i++)
+        {
+            var mass = EntityManager.GetComponentData<PhysicsMass>(entities[i]);
+            var translation = EntityManager.GetComponentData<Translation>(entities[i]);
+            var rotation = EntityManager.GetComponentData<Rotation>(entities[i]);
+
+            var velocity = EntityManager.GetComponentData<PhysicsVelocity>(entities[i]);
+
+            // NOTE I DO NOT SUPPORT CHANGING THE MASS OF OBJECTS HERE. IF MASS CHANGES IN GPU YOU NEED TO CALL SET COMPONENT DATA ON PHYSICSMASS.
+
+            velocity.ApplyImpulse(mass, translation, rotation, (float)dt*points[i].Resultant, float3.zero);
+            EntityManager.SetComponentData<GlobPoint>(entities[i], points[i]);
+            EntityManager.SetComponentData<PhysicsVelocity>(entities[i], velocity);
+        }
+
+        UnityEngine.Debug.Log($"Applying physics took: {applyPhysics.ElapsedMilliseconds} ms");
+    }
+
+    bool _waiting;
+
+    AsyncGPUReadbackRequest _readbackRequest;
     protected override void OnUpdate()
     {
-        int entitiesInQuery = query.CalculateEntityCount();
-        float dt = Time.DeltaTime;
-        var globPoints = GlobPointSystem.s_globPoints;
-
-        Entities
-            .ForEach((int entityInQueryIndex, in Translation translation, in PhysicsMass mass, in PhysicsCustomTags tag) =>
+        // The hard part about offloading work to the GPU is keeping the ECS in sync with the GPU work I am doing.
+        // First we query ECS for a pile of entitities, then we pass that pile to a compute shader which operates on it, then 
+        // we retrieve that pile again.
+        //UnityEngine.Debug.Log($"Glob Count: {_globCounter}");
+        if (!_waiting)
         {
-            if ((tag.Value & (byte)GlobKind.ION) != 0)
+            Stopwatch tick = Stopwatch.StartNew();
+            var query = PollEntitiesForGlobData(out NativeArray<Entity> entities, out NativeArray<GlobPoint> globData, out uint count);
+
+            ComputeBuffer computeBuffer = new ComputeBuffer((int)count, GlobPoint.STRIDE);
+
+            _forceFieldShader.SetInt("GlobCount", (int)count);
+            computeBuffer.SetData<GlobPoint>(globData);
+            computeBuffer.SetCounterValue(count);
+            _forceFieldShader.SetBuffer(_forceFieldKernel, "InputGlobPoints", computeBuffer);
+
+            _forceFieldShader.Dispatch(_forceFieldKernel, 32, 1, 1);
+
+            _waiting = true;
+            _readbackRequest = AsyncGPUReadback.RequestIntoNativeArray(ref globData, computeBuffer, (request) =>
             {
-                globPoints[entityInQueryIndex] = new GlobPoint { Mass = 1f/mass.InverseMass, Globiness = 1f, Position = translation.Value };
-            }
-            else
-            {
-                globPoints[entityInQueryIndex] = new GlobPoint { Mass = 1f/mass.InverseMass, Globiness = 0f, Position = translation.Value };
-            }
-
-        })
-        .WithStoreEntityQueryInField(ref query)
-        .ScheduleParallel();
-
-        Entities
-            .ForEach((
-                ref PhysicsVelocity velocity,
-                in PhysicsMass mass,
-                in Translation translation,
-                in Rotation rotation,
-                in PhysicsCustomTags tag,
-                in PhysicsCollider collider) =>
-        {
-            float3 resultant = float3.zero;
-            float3 diff = float3.zero;
-
-            for (int i = 0; i < entitiesInQuery; i++)
-            {
-                diff = globPoints[i].Position - translation.Value;
-                var distance = math.length(diff) - 0.50f; // TODO: How do I get Collider type? I want spherical collider.radius
-                if (distance <= 0.5f) continue;
-
-
-                // Newton's law of gravity
-                resultant += GRAVITATIONAL_CONSTANT * (globPoints[i].Mass * (1f / mass.InverseMass) / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 1.5f)) * math.normalize(diff);
-
-                if ((tag.Value & (byte)GlobKind.ION) != 0)
+                if (request.done)
                 {
-                    // Experimentally found "water" equation. Notice the steeper fall off function with distance.
-                    var globForce = GLOBINESS_CONSTANT * (globPoints[i].Globiness / math.pow(math.pow(diff.x, 2) + math.pow(diff.y, 2) + math.pow(diff.z, 2), 5f)) * math.normalize(diff);
-                    
-                    if (math.length(globForce) > 0.5f)
-                    {
-                        resultant += globForce;
-                    }
+                    //UnityEngine.Debug.Log("Applying impulses.");
+                    ApplyGpuData(entities, globData, count);
 
+                    entities.Dispose();
+                    globData.Dispose();
+                    computeBuffer.Release();
                 }
-            }
-            // newtons second
-            velocity.ApplyImpulse(mass, translation, rotation, resultant * dt, translation.Value);
-        })
-        .ScheduleParallel();
+                else if(request.hasError)
+                {
+                    UnityEngine.Debug.LogError($"GPU Readback error. {request.ToString()}");
+                }
 
+                _waiting = false;
+                _lastApplyTime = Time.ElapsedTime;
+                _applyPeriod = tick.ElapsedMilliseconds / 1000f;
+                UnityEngine.Debug.Log($"Force Field Tick took: {tick.ElapsedMilliseconds} ms. ({1000f/(tick.ElapsedMilliseconds)} Hz)");
+            });
+        }
     }
 }

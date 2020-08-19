@@ -7,7 +7,7 @@ using UnityEngine.UIElements;
 using Unity.Rendering;
 using Unity.Physics;
 using Unity.Mathematics;
-
+using Unity.Collections;
 
 public class GlobxelSpawner : MonoBehaviour
 {
@@ -17,22 +17,16 @@ public class GlobxelSpawner : MonoBehaviour
     [SerializeField]
     GameObject _waterPrefab;
 
-    // TODO: These are part of the new SpawnGlobxelNew methods. I will update eventually.
-    //[SerializeField]
-    //Mesh _defaultMesh;
-
-    //[SerializeField]
-    //UnityEngine.Material _defaultMaterial;
-
-    float _earthSpawnPeriod = 1f / 250f;
+    float _earthSpawnPeriod = 1f / 25f;
     float _lastEarthSpawnTime = 0f;
 
-    float _waterSpawnPeriod = 1f / 250f;
+    float _waterSpawnPeriod = 1f / 25f;
     float _lastWaterSpawnTime = 0f;
+
     // Start is called before the first frame update
     void Start()
     {
-        
+        Debug.Log("Started globxel spawner.");
     }
 
     // This requires that the prefabs have an entity converter on them. 
@@ -41,91 +35,34 @@ public class GlobxelSpawner : MonoBehaviour
         Instantiate(prefab, position, Quaternion.identity);
     }
 
-    // TODO: Fails with AABB errors. I dont know what I am doing in most of these lines though.
-    // Consult Unity documentation for how to create entities to get this right - it will matter later.
-    //void SpawnGlobxelNew(Vector3 position)
-    //{
-    //    // TODO : Create entity here with data.
-    //    Debug.Log($"TODO: Spawn at {position}");
-    //    var em = World.DefaultGameObjectInjectionWorld.EntityManager;
-    //    var baseGlobxelArchetype = em.CreateArchetype(
-    //        typeof(Translation),
-    //        typeof(Rotation),
-    //        typeof(RenderMesh),
-    //        typeof(RenderBounds),
-    //        typeof(LocalToWorld),
-    //        typeof(PhysicsMass),
-    //        typeof(PhysicsVelocity),
-    //        typeof(PhysicsCollider)
-    //        );
+    private void OnApplicationQuit()
+    {
+        
+    }
 
-    //    var newEntity = em.CreateEntity(baseGlobxelArchetype);
-
-    //    // TODO: what is shared component data vs component data?
-
-    //    em.AddComponentData(newEntity, new Translation
-    //    {
-    //        Value = position
-    //    });
-
-    //    em.AddSharedComponentData(newEntity, new RenderMesh
-    //    {
-    //        mesh = _defaultMesh,
-    //        material = _defaultMaterial
-    //    });
-
-    //    em.AddComponentData(newEntity, new RenderBounds
-    //    {
-    //        Value = new AABB
-    //        {
-    //            Center = float3.zero,
-    //            Extents = new float3(1f, 1f, 1f)
-    //        }
-    //    });
-
-    //    em.AddComponentData(newEntity, new PhysicsVelocity
-    //    {
-    //        Angular = new float3(0f, 0f, 0f),
-    //        Linear = new float3(1f, 0f, 0f)
-    //    });
-
-
-    //    if (em.HasComponent<PhysicsMass>(newEntity))
-    //    {
-    //        var mass = em.GetComponentData<PhysicsMass>(newEntity);
-    //        mass.InverseMass = 1f;
-    //        em.SetComponentData<PhysicsMass>(newEntity, mass);
-    //    }
-
-
-    //    em.AddComponentData(newEntity, new PhysicsCollider
-    //    {
-    //        Value = Unity.Physics.BoxCollider.Create(new BoxGeometry()
-    //        {
-    //            Size = new float3(1, 1, 1),
-    //            Center = new float3(0.5f, 0.5f, 0.5f),
-    //            Orientation = quaternion.identity,
-    //            BevelRadius = 0
-    //        })
-    //    });
-    //}
-
+    
     // Update is called once per frame
     void Update()
     {
-        if(Input.GetMouseButton(0))
+        if (Input.GetMouseButton(0))
         {
-            if(Time.time - _lastEarthSpawnTime >= _earthSpawnPeriod)
+            var randomAngle = UnityEngine.Random.insideUnitCircle.normalized;
+            var randomAngle3 = UnityEngine.Random.onUnitSphere;
+
+            if (Time.time - _lastEarthSpawnTime >= _earthSpawnPeriod)
             {
-                SpawnGlobxelConvert(_earthPrefab, Camera.main.transform.position + 5f*Camera.main.transform.forward);
+                SpawnGlobxelConvert(_earthPrefab, Camera.main.transform.position + 5f*Camera.main.transform.forward + 2f * randomAngle3);
                 _lastEarthSpawnTime = Time.time;
             }
         }
         else if(Input.GetKey(KeyCode.Space))
         {
+            var randomAngle = UnityEngine.Random.insideUnitCircle.normalized;
+            var randomAngle3 = new Vector3(randomAngle.x, randomAngle.y, 0f);
+
             if (Time.time - _lastWaterSpawnTime >= _waterSpawnPeriod)
             {
-                SpawnGlobxelConvert(_waterPrefab, Camera.main.transform.position + 5f * Camera.main.transform.forward);
+                SpawnGlobxelConvert(_waterPrefab, Camera.main.transform.position + 5f * Camera.main.transform.forward + 1f * randomAngle3);
                 _lastWaterSpawnTime = Time.time;
             }
         }
