@@ -8,6 +8,8 @@ using Unity.Rendering;
 using Unity.Physics;
 using Unity.Mathematics;
 using Unity.Collections;
+using UnityEditor;
+using System.Diagnostics;
 
 public class GlobxelSpawner : MonoBehaviour
 {
@@ -26,7 +28,6 @@ public class GlobxelSpawner : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        Debug.Log("Started globxel spawner.");
     }
 
     // This requires that the prefabs have an entity converter on them. 
@@ -40,7 +41,31 @@ public class GlobxelSpawner : MonoBehaviour
         
     }
 
-    
+    public void OnDrawGizmos()
+    {
+        if (!EditorApplication.isPlaying) return;
+
+        Stopwatch gizmoDraw = Stopwatch.StartNew();
+        var forceSystem = World.DefaultGameObjectInjectionWorld.GetExistingSystem<GlobPointSystem>();
+        forceSystem.Gravity.ForAllFieldPositions((field, index) =>
+        {
+            var fieldPosition = field.WorldPositionFromIndex(index);
+            Vector3 fieldPositionVec3 = new Vector3(fieldPosition.x, fieldPosition.y, fieldPosition.z);
+            var diff = math.length(Camera.current.transform.position - fieldPositionVec3);
+
+            Gizmos.color = Color.Lerp(Color.white, Color.red, math.length(field.AccelerationAtIndex(index)) / 1f);
+
+            Gizmos.DrawWireSphere(fieldPosition, 1f);
+            Gizmos.color = Color.white;
+            Gizmos.DrawRay(new UnityEngine.Ray(fieldPosition, field.AccelerationAtIndex(index)));
+            if (diff < 10f)
+            {
+                Handles.Label(field.WorldPositionFromIndex(index), $"INDEX:{index}\nACCEL: {field.AccelerationAtIndex(index)}\nPOS:{field.WorldPositionFromIndex(index)}");
+            }
+
+        });
+    }
+
     // Update is called once per frame
     void Update()
     {
