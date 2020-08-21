@@ -47,23 +47,13 @@ public class GlobxelSpawner : MonoBehaviour
 
         Stopwatch gizmoDraw = Stopwatch.StartNew();
         var forceSystem = World.DefaultGameObjectInjectionWorld.GetExistingSystem<GlobPointSystem>();
-        forceSystem.Gravity.ForAllFieldPositions((field, index) =>
+        if (forceSystem.Tree == null) return;
+        forceSystem.Tree.PreOrderTraverseTree((region) =>
         {
-            var fieldPosition = field.WorldPositionFromIndex(index);
-            Vector3 fieldPositionVec3 = new Vector3(fieldPosition.x, fieldPosition.y, fieldPosition.z);
-            var diff = math.length(Camera.current.transform.position - fieldPositionVec3);
+            Gizmos.DrawWireCube((region.Min + region.Max) / 2f, (region.Max - region.Min));
 
-            Gizmos.color = Color.Lerp(Color.white, Color.red, math.length(field.AccelerationAtIndex(index)) / 1f);
-
-            Gizmos.DrawWireSphere(fieldPosition, 1f);
-            Gizmos.color = Color.white;
-            Gizmos.DrawRay(new UnityEngine.Ray(fieldPosition, field.AccelerationAtIndex(index)));
-            if (diff < 10f)
-            {
-                Handles.Label(field.WorldPositionFromIndex(index), $"INDEX:{index}\nACCEL: {field.AccelerationAtIndex(index)}\nPOS:{field.WorldPositionFromIndex(index)}");
-            }
-
-        });
+        }, forceSystem.Tree.Root);
+        //Gizmos.DrawWireCube
     }
 
     // Update is called once per frame

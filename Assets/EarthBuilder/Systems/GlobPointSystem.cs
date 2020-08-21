@@ -18,18 +18,12 @@ using System.Threading;
 using UnityEngine.Rendering;
 using System.Linq;
 using Assets.EarthBuilder.Systems;
+using TMPro;
 
 // TODO: How do I order my systems?
 // TODO: See Unity.Entities.UpdateAfterAttribute and UpdateBeforeAttribute
 public class GlobPointSystem : SystemBase
 {
-    GravityForceField _gravityField;
-    public GravityForceField Gravity { 
-        get
-        {
-            return _gravityField;
-        } 
-    }
     public struct GlobPoint : IComponentData
     {
         public const int STRIDE = 32;
@@ -41,8 +35,6 @@ public class GlobPointSystem : SystemBase
 
     protected override void OnCreate()
     {
-        _gravityField = new GravityForceField(16, new float3(-32, -32, -32), new float3(32, 32, 32));
-
         base.OnCreate();
     }
 
@@ -52,21 +44,21 @@ public class GlobPointSystem : SystemBase
         base.OnDestroy();
     }
 
+    private BarnesHutTree _bhTree;
+    public BarnesHutTree Tree
+    {
+        get
+        {
+            return _bhTree;
+        }
+    }
+    // TODO: Minimize allocations somehow.
     protected override void OnUpdate()
     {
-        var dt = Time.DeltaTime;
-        var gravity = _gravityField;
-
-        gravity.Clear();
-
-        Entities.ForEach((in PhysicsMass mass, in Translation translation) =>
+        _bhTree = new BarnesHutTree(new float3(-32, -32, -32), new float3(32, 32, 32)); // tree is rebuilt every update.
+        Entities.ForEach((in Entity entity, in PhysicsMass mass, in Translation translation) =>
         {
-            gravity.AddMassPointGravityAtPosition(1f / mass.InverseMass, translation.Value);
-        }).WithoutBurst().ScheduleParallel();
-        
-        Entities.ForEach((ref PhysicsVelocity velocity, in PhysicsMass mass, in Rotation rotation, in Translation translation) =>
-        {
-            velocity.ApplyImpulse(mass, translation, rotation, gravity.WeightAtPosition(1f / mass.InverseMass, translation.Value) * dt, float3.zero);
-        }).WithoutBurst().ScheduleParallel();
+            _bhTree.AddEntityToTree(entity, 1f / mass.InverseMass, translation.Value);
+        }).WithoutBurst().Run();
     }
 }
