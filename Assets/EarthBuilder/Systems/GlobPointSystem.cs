@@ -60,5 +60,11 @@ public class GlobPointSystem : SystemBase
         {
             _bhTree.AddEntityToTree(entity, 1f / mass.InverseMass, translation.Value);
         }).WithoutBurst().Run();
+
+        Entities.ForEach((ref PhysicsVelocity velocity, in Entity entity, in PhysicsMass mass, in Translation translation, in Rotation rotation) =>
+        {
+            var resultant = _bhTree.ResultantOnEntity(entity, 1f/mass.InverseMass, translation.Value);
+            velocity.ApplyImpulse(mass, translation, rotation, resultant * Time.DeltaTime, float3.zero);
+        }).WithoutBurst().Run();
     }
 }

@@ -26,8 +26,24 @@ namespace Assets.EarthBuilder.Systems
         public float3 Max;
         public float3 Min;
 
-        RegionEntity? CurrentRegionEntity;
+        RegionEntity? _currentRegionEntity;
         BHRegion[] _subRegions;
+
+        public float Dimension
+        {
+            get
+            {
+                return math.length(Max - Min);
+            }
+        }
+
+        public RegionEntity? CurrentRegionEntity
+        {
+            get
+            {
+                return _currentRegionEntity;
+            }
+        }
 
         public BHRegion[] Subregions
         {
@@ -46,7 +62,7 @@ namespace Assets.EarthBuilder.Systems
         {
             TotalMass = 0f;
             Moment = new float3(0, 0, 0);
-            CurrentRegionEntity = null;
+            _currentRegionEntity = null;
             _subRegions = null;
             Min = min;
             Max = max;
@@ -56,7 +72,7 @@ namespace Assets.EarthBuilder.Systems
         {
             get
             {
-                return (CurrentRegionEntity == null && _subRegions == null);
+                return (_currentRegionEntity == null && _subRegions == null);
             }
         }
 
@@ -64,7 +80,7 @@ namespace Assets.EarthBuilder.Systems
         {
             get
             {
-                return CurrentRegionEntity == null && _subRegions != null;
+                return _currentRegionEntity == null && _subRegions != null;
             }
         }
 
@@ -72,7 +88,7 @@ namespace Assets.EarthBuilder.Systems
         {
             get
             {
-                return _subRegions == null && CurrentRegionEntity != null;
+                return _subRegions == null && _currentRegionEntity != null;
             }
         }
 
@@ -129,7 +145,7 @@ namespace Assets.EarthBuilder.Systems
             if(IsEmpty)
             {
                 // if this node is empty, place the entity here.
-                CurrentRegionEntity = newRegionEntity;
+                _currentRegionEntity = newRegionEntity;
                 // NOTE: Do i need to update total mass and center of mass here??
                 TotalMass = newRegionEntity.mass;
                 Moment = newRegionEntity.mass * newRegionEntity.position;
@@ -152,9 +168,9 @@ namespace Assets.EarthBuilder.Systems
                 Subdivide();
 
                 FindAndPlaceInSubregion(newRegionEntity);
-                FindAndPlaceInSubregion(CurrentRegionEntity.Value);
+                FindAndPlaceInSubregion(_currentRegionEntity.Value);
 
-                CurrentRegionEntity = null;
+                _currentRegionEntity = null;
 
                 TotalMass += newRegionEntity.mass;
                 Moment += newRegionEntity.mass * newRegionEntity.position;

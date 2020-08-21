@@ -53,7 +53,6 @@ public class GlobxelSpawner : MonoBehaviour
             Gizmos.DrawWireCube((region.Min + region.Max) / 2f, (region.Max - region.Min));
 
         }, forceSystem.Tree.Root);
-        //Gizmos.DrawWireCube
     }
 
     // Update is called once per frame
